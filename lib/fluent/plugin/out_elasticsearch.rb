@@ -178,6 +178,12 @@ EOC
     config_param :use_legacy_template, :bool, :default => true
     config_param :catch_transport_exception_on_retry, :bool, :default => true
     config_param :target_index_affinity, :bool, :default => false
+    config_param :force_content_type, :string, :default => nil,
+                :desc => "Force specific Content-Type header (e.g., 'application/json' or 'application/x-ndjson'). " \
+                          "Overrides automatic version detection. Useful for mixed ES environments."
+    config_param :ignore_version_content_type_mismatch, :bool, :default => false,
+                :desc => "Automatically fallback to application/json if Content-Type version mismatch occurs. " \
+                          "Enables seamless operation across mixed ES 7/8/9 environments."
 
     config_section :metadata, param_name: :metainfo, multi: false do
       config_param :include_chunk_id, :bool, :default => false
@@ -362,12 +368,29 @@ EOC
             @type_name = nil
           end
           @accept_type = nil
-          if @content_type != ES9_CONTENT_TYPE
+
+          # Only set ES9 content type if not overridden and mismatch handling is not enabled
+          if @content_type.to_s != ES9_CONTENT_TYPE && !@ignore_version_content_type_mismatch
             log.trace "Detected ES 9.x or above: Content-Type will be adjusted."
             @content_type = ES9_CONTENT_TYPE
             @accept_type = ES9_CONTENT_TYPE
+          elsif @ignore_version_content_type_mismatch
+            log.info "Ignoring ES version for Content-Type, using application/json for compatibility"
+            @content_type = :'application/json'
+            @accept_type = nil
           end
         end
+      end
+
+      if @content_type.nil?
+        log.warn "content_type was nil, defaulting to application/json"
+        @content_type = :'application/json'
+      end
+
+      if @force_content_type
+        log.info "Forcing Content-Type to: #{@force_content_type}"
+        @content_type = @force_content_type
+        @accept_type = nil
       end
 
       if @validate_client_version && !dry_run?
@@ -624,19 +647,20 @@ EOC
                        else
                          {}
                        end
-        headers = { 'Content-Type' => @content_type.to_s }
+
+        content_type_value = @content_type ? @content_type.to_s : 'application/json'
+        accept_type_value = @accept_type ? @accept_type.to_s : nil
+        content_type_value = 'application/json' if content_type_value.strip.empty?
+
+        headers = { 'Content-Type' => content_type_value }
                     .merge(@custom_headers)
                     .merge(@api_key_header)
                     .merge(gzip_headers)
-        headers.merge!('Accept' => @accept_type) if @accept_type
+
+        headers.merge!('Accept' => accept_type_value) if accept_type_value && !accept_type_value.strip.empty?
 
         ssl_options = { verify: @ssl_verify, ca_file: @ca_file}.merge(@ssl_version_options)
 
-        transport_options_hash = {
-          headers: headers || { 'Content-Type' => 'application/json' },
-          request: { timeout: @request_timeout },
-          ssl: ssl_options,
-        }
         transport = TRANSPORT_CLASS::Transport::HTTP::Faraday.new(connection_options.merge(
                                                                             options: {
                                                                               reload_connections: local_reload_connections,
