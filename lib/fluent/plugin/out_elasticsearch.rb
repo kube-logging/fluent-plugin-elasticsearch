@@ -27,6 +27,7 @@ require_relative 'elasticsearch_index_template'
 require_relative 'elasticsearch_index_lifecycle_management'
 require_relative 'elasticsearch_tls'
 require_relative 'elasticsearch_fallback_selector'
+require_relative 'elasticsearch_api_bugfix'
 begin
   require_relative 'oj_serializer'
 rescue LoadError
@@ -631,6 +632,11 @@ EOC
 
         ssl_options = { verify: @ssl_verify, ca_file: @ca_file}.merge(@ssl_version_options)
 
+        transport_options_hash = {
+          headers: headers || { 'Content-Type' => 'application/json' },
+          request: { timeout: @request_timeout },
+          ssl: ssl_options,
+        }
         transport = TRANSPORT_CLASS::Transport::HTTP::Faraday.new(connection_options.merge(
                                                                             options: {
                                                                               reload_connections: local_reload_connections,
