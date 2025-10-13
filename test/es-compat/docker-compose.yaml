@@ -1,0 +1,40 @@
+services:
+  elasticsearch7:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.16
+    container_name: es7
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+    ports:
+      - "9207:9200"
+    networks:
+      - elastic
+
+  elasticsearch8:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: es8
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+    ports:
+      - "9208:9200"
+    networks:
+      - elastic
+
+  elasticsearch9:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.5
+    container_name: es9
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+    ports:
+      - "9209:9200"
+    networks:
+      - elastic
+
+networks:
+  elastic:
+    driver: bridge
